@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            transition: background 0.3s, color 0.3s;
+        }
+        body.dark { background: #0a0a0b; color: #fafafa; }
+        body.light { background: #f4f4f5; color: #18181b; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+    </style>
+</head>
+<body class="dark">
+    <div id="root"></div>
+
+    <script>
+        window.storage = {
+            async get(key) {
+                const value = localStorage.getItem(key);
+                return value ? { key, value, shared: false } : null;
+            },
+            async set(key, value) {
+                localStorage.setItem(key, value);
+                return { key, value };
+            }
+        };
+    </script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        const Icons = {
+            TrendUp: () => (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+                </svg>
+            ),
+            TrendDown: () => (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/>
+                </svg>
+            ),
+            Plus: () => (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+            ),
+            Trash: () => (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+            ),
+            Refresh: ({ spinning }) => (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: spinning ? 'spin 1s linear infinite' : 'none' }}>
+                    <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                </svg>
+            ),
+            Edit: () => (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+            ),
+            Check: () => (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+            ),
+            X: () => (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            ),
+            Sun: () => (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+            ),
+            Moon: () => (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+            ),
+            Building: () => (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/>
+                </svg>
+            ),
+            ChevronUp: () => (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="18 15 12 9 6 15"/>
+                </svg>
+            ),
+            ChevronDown: () => (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9"/>
+                </svg>
+            ),
+            Download: () => (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+            ),
+            Upload: () => (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+            )
+        };
+
+        const defaultAccounts = [
+            { id: 1, name: 'TFSA', type: 'TFSA', provider: 'Wealthsimple', color: '#3b82f6' },
+            { id: 2, name: 'RRSP', type: 'RRSP', provider: 'Questrade', color: '#8b5cf6' },
+        ];
+
+        const accountTypes = ['TFSA', 'RRSP', 'FHSA', 'Cash', 'RESP', 'Margin', 'Non-Registered'];
+        const currencies = ['CAD', 'USD', 'BRL'];
+        const colorPalette = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#6366f1'];
+
+        const getRandomColor = (usedColors) => {
+            const available = colorPalette.filter(c => !usedColors.includes(c));
+            if (available.length > 0) {
+                return available[Math.floor(Math.random() * available.length)];
+            }
+            return '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
+        };
+
+        function App() {
+            const [darkMode, setDarkMode] = useState(true);
+            const [activeTab, setActiveTab] = useState('portfolio');
+            const [positions, setPositions] = useState([]);
+            const [accounts, setAccounts] = useState(defaultAccounts);
+            const [loading, setLoading] = useState(true);
+            const [refreshing, setRefreshing] = useState(false);
+            const [editingId, setEditingId] = useState(null);
+            const [editPrice, setEditPrice] = useState('');
+            const [newPosition, setNewPosition] = useState({ symbol: '', shares: '', avgCost: '', balance: '', accountId: '', currency: 'CAD', manual: false });
+            const [newAccount, setNewAccount] = useState({ name: '', type: 'TFSA', provider: '', color: '#3b82f6' });
+            const [editingAccountId, setEditingAccountId] = useState(null);
+            const [editingAccount, setEditingAccount] = useState(null);
+            const [lastUpdate, setLastUpdate] = useState(null);
+            const [displayCurrency, setDisplayCurrency] = useState('CAD');
+            const [exchangeRate, setExchangeRate] = useState(1.35); // USD to CAD default
+            const [brlRate, setBrlRate] = useState(5.70); // USD to BRL default
+            const [viewMode, setViewMode] = useState('expanded'); // 'expanded', 'collapsed', or 'byType'
+            const [tableCurrency, setTableCurrency] = useState('original'); // 'original', 'CAD', 'USD', 'BRL'
+            const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' }); // { key: 'symbol' | 'account' | 'shares' | 'avgCost' | 'price' | 'value' | 'return', direction: 'asc' | 'desc' }
+
+            const colors = useMemo(() => darkMode ? {
+                bg: '#0a0a0b', card: '#18181b', border: '#27272a', text: '#fafafa',
+                textMuted: '#71717a', textDim: '#52525b', hover: '#1f1f23', input: '#0a0a0b'
+            } : {
+                bg: '#f4f4f5', card: '#ffffff', border: '#e4e4e7', text: '#18181b',
+                textMuted: '#71717a', textDim: '#a1a1aa', hover: '#f4f4f5', input: '#ffffff'
+            }, [darkMode]);
+
+            useEffect(() => {
+                document.body.className = darkMode ? 'dark' : 'light';
+            }, [darkMode]);
+
+            useEffect(() => { loadData(); fetchExchangeRate(); }, []);
+
+            const fetchExchangeRate = async () => {
+                try {
+                    // Fetch USD/CAD rate
+                    const cadUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/USDCAD=X?interval=1d&range=1d';
+                    const cadRes = await fetch(`https://corsproxy.io/?${encodeURIComponent(cadUrl)}`);
+                    const cadData = await cadRes.json();
+                    const cadRate = cadData.chart?.result?.[0]?.meta?.regularMarketPrice;
+                    if (cadRate) setExchangeRate(cadRate);
+
+                    // Fetch USD/BRL rate
+                    const brlUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/USDBRL=X?interval=1d&range=1d';
+                    const brlRes = await fetch(`https://corsproxy.io/?${encodeURIComponent(brlUrl)}`);
+                    const brlData = await brlRes.json();
+                    const brlRateValue = brlData.chart?.result?.[0]?.meta?.regularMarketPrice;
+                    if (brlRateValue) setBrlRate(brlRateValue);
+                } catch (e) { console.error('Failed to fetch exchange rate:', e); }
+            };
+
+            const loadData = async () => {
+                try {
+                    const [posResult, accResult, themeResult] = await Promise.all([
+                        window.storage.get('positions'),
+                        window.storage.get('accounts'),
+                        window.storage.get('darkMode')
+                    ]);
+                    if (posResult) setPositions(JSON.parse(posResult.value));
+                    const loadedAccounts = accResult ? JSON.parse(accResult.value) : defaultAccounts;
+                    if (accResult) setAccounts(loadedAccounts);
+                    if (themeResult) setDarkMode(JSON.parse(themeResult.value));
+                    const usedColors = loadedAccounts.map(a => a.color);
+                    setNewAccount(prev => ({ ...prev, color: getRandomColor(usedColors) }));
+                } catch (e) { console.error(e); }
+                setLoading(false);
+            };
+
+            const savePositions = async (p) => { setPositions(p); await window.storage.set('positions', JSON.stringify(p)); };
+            const saveAccounts = async (a) => { setAccounts(a); await window.storage.set('accounts', JSON.stringify(a)); };
+            const toggleTheme = async () => { const next = !darkMode; setDarkMode(next); await window.storage.set('darkMode', JSON.stringify(next)); };
+
+            const formatSymbolForYahoo = (symbol) => {
+                let s = symbol.toUpperCase().trim();
+                // Remove .TO suffix if present to process the base symbol
+                const hasTOSuffix = s.endsWith('.TO');
+                if (hasTOSuffix) s = s.slice(0, -3);
+                // Convert share class notation: BTCX.B -> BTCX-B, BTCX.U -> BTCX-U
+                s = s.replace(/\.([A-Z])$/, '-$1');
+                // Add .TO suffix for Canadian symbols (contains hyphen after conversion or ends with common CA patterns)
+                if (hasTOSuffix || s.includes('-') || /\.(TO|V|CN|NE)$/i.test(symbol)) {
+                    if (!s.endsWith('.TO')) s += '.TO';
+                }
+                return s;
+            };
+
+            const fetchPrice = async (symbol) => {
+                try {
+                    const yahooSymbol = formatSymbolForYahoo(symbol);
+                    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?interval=1d&range=1d`;
+                    const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
+                    const data = await res.json();
+                    return data.chart?.result?.[0]?.meta?.regularMarketPrice || null;
+                } catch { return null; }
+            };
+
+            const updateAllPrices = async () => {
+                const autoPositions = positions.filter(p => !p.manual);
+                if (!autoPositions.length) return;
+                setRefreshing(true);
+                const updated = await Promise.all(positions.map(async (p) => {
+                    if (p.manual) return p;
+                    const price = await fetchPrice(p.symbol);
+                    return { ...p, currentPrice: price || p.currentPrice || p.avgCost };
+                }));
+                await savePositions(updated);
+                setLastUpdate(new Date());
+                setRefreshing(false);
+            };
+
+            const addPosition = async () => {
+                if (!newPosition.symbol || !newPosition.accountId) return;
+                if (!newPosition.manual && (!newPosition.shares || !newPosition.avgCost)) return;
+                if (newPosition.manual && !newPosition.balance) return;
+
+                const pos = newPosition.manual ? {
+                    id: Date.now(),
+                    symbol: newPosition.symbol.trim(),
+                    balance: parseFloat(newPosition.balance),
+                    accountId: parseInt(newPosition.accountId),
+                    currency: newPosition.currency,
+                    manual: true,
+                    lastUpdated: new Date().toISOString()
+                } : {
+                    id: Date.now(),
+                    symbol: newPosition.symbol.toUpperCase().trim(),
+                    shares: parseFloat(newPosition.shares),
+                    avgCost: parseFloat(newPosition.avgCost),
+                    currentPrice: parseFloat(newPosition.avgCost),
+                    accountId: parseInt(newPosition.accountId),
+                    currency: newPosition.currency,
+                    manual: false
+                };
+
+                setPositions(prev => {
+                    const updated = [...prev, pos];
+                    window.storage.set('positions', JSON.stringify(updated));
+                    return updated;
+                });
+                setNewPosition({ symbol: '', shares: '', avgCost: '', balance: '', accountId: newPosition.accountId, currency: newPosition.currency, manual: false });
+
+                if (!pos.manual) {
+                    const price = await fetchPrice(pos.symbol);
+                    if (price) {
+                        setPositions(prev => {
+                            const updated = prev.map(p => p.id === pos.id ? { ...p, currentPrice: price } : p);
+                            window.storage.set('positions', JSON.stringify(updated));
+                            return updated;
+                        });
+                    }
+                }
+            };
+
+            const deletePosition = async (id) => await savePositions(positions.filter(p => p.id !== id));
+
+            const saveEditPrice = async (id) => {
+                const value = parseFloat(editPrice);
+                if (!isNaN(value) && value >= 0) {
+                    const pos = positions.find(p => p.id === id);
+                    if (pos.manual) {
+                        await savePositions(positions.map(p => p.id === id ? { ...p, balance: value, lastUpdated: new Date().toISOString() } : p));
+                    } else {
+                        await savePositions(positions.map(p => p.id === id ? { ...p, currentPrice: value } : p));
+                    }
+                    setLastUpdate(new Date());
+                }
+                setEditingId(null);
+            };
+
+            const addAccount = async () => {
+                if (!newAccount.name || !newAccount.provider) return;
+                const usedColors = accounts.map(a => a.color);
+                const color = getRandomColor(usedColors);
+                const acc = { id: Date.now(), ...newAccount, color };
+                const newAccounts = [...accounts, acc];
+                await saveAccounts(newAccounts);
+                const nextColor = getRandomColor(newAccounts.map(a => a.color));
+                setNewAccount({ name: '', type: 'TFSA', provider: '', color: nextColor });
+            };
+
+            const startEditAccount = (acc) => {
+                setEditingAccountId(acc.id);
+                setEditingAccount({ ...acc });
+            };
+
+            const saveEditAccount = async () => {
+                if (!editingAccount) return;
+                await saveAccounts(accounts.map(a => a.id === editingAccount.id ? editingAccount : a));
+                setEditingAccountId(null);
+                setEditingAccount(null);
+            };
+
+            const cancelEditAccount = () => {
+                setEditingAccountId(null);
+                setEditingAccount(null);
+            };
+
+            const moveAccount = async (index, direction) => {
+                const newIndex = index + direction;
+                if (newIndex < 0 || newIndex >= accounts.length) return;
+                const newAccounts = [...accounts];
+                [newAccounts[index], newAccounts[newIndex]] = [newAccounts[newIndex], newAccounts[index]];
+                await saveAccounts(newAccounts);
+            };
+
+            const deleteAccount = async (id) => {
+                if (positions.some(p => p.accountId === id)) {
+                    alert('Cannot delete account with positions. Remove positions first.');
+                    return;
+                }
+                await saveAccounts(accounts.filter(a => a.id !== id));
+            };
+
+            const exportData = () => {
+                const data = {
+                    positions: positions,
+                    accounts: accounts,
+                    darkMode: darkMode,
+                    exportDate: new Date().toISOString()
+                };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `portfolio-backup-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+
+            const importData = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+
+                        if (data.positions) {
+                            await savePositions(data.positions);
+                        }
+                        if (data.accounts) {
+                            await saveAccounts(data.accounts);
+                        }
+                        if (data.darkMode !== undefined) {
+                            setDarkMode(data.darkMode);
+                            await window.storage.set('darkMode', JSON.stringify(data.darkMode));
+                        }
+
+                        alert('Data imported successfully!');
+                        window.location.reload();
+                    } catch (error) {
+                        alert('Failed to import data. Please check the file format.');
+                        console.error('Import error:', error);
+                    }
+                };
+                reader.readAsText(file);
+                event.target.value = ''; // Reset input
+            };
+
+            const getAccount = (id) => accounts.find(a => a.id === id) || { name: 'Unknown', color: '#71717a' };
+
+            const convertToDisplay = (value, fromCurrency) => {
+                if (fromCurrency === displayCurrency) return value;
+
+                // Convert to USD first (as intermediate currency)
+                let usdValue = value;
+                if (fromCurrency === 'CAD') {
+                    usdValue = value / exchangeRate; // CAD to USD
+                } else if (fromCurrency === 'BRL') {
+                    usdValue = value / brlRate; // BRL to USD
+                }
+                // fromCurrency === 'USD' means usdValue is already correct
+
+                // Convert from USD to target currency
+                if (displayCurrency === 'CAD') {
+                    return usdValue * exchangeRate; // USD to CAD
+                } else if (displayCurrency === 'BRL') {
+                    return usdValue * brlRate; // USD to BRL
+                }
+                return usdValue; // USD
+            };
+
+            const convertTableValue = (value, fromCurrency) => {
+                if (tableCurrency === 'original') return { value, currency: fromCurrency };
+                if (tableCurrency === fromCurrency) return { value, currency: fromCurrency };
+
+                // Convert to USD first (as intermediate currency)
+                let usdValue = value;
+                if (fromCurrency === 'CAD') {
+                    usdValue = value / exchangeRate; // CAD to USD
+                } else if (fromCurrency === 'BRL') {
+                    usdValue = value / brlRate; // BRL to USD
+                }
+
+                // Convert from USD to target currency
+                if (tableCurrency === 'CAD') {
+                    return { value: usdValue * exchangeRate, currency: 'CAD' };
+                } else if (tableCurrency === 'BRL') {
+                    return { value: usdValue * brlRate, currency: 'BRL' };
+                }
+                return { value: usdValue, currency: 'USD' };
+            };
+
+            const handleSort = (key) => {
+                setSortConfig(prev => ({
+                    key,
+                    direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+                }));
+            };
+
+            const getSortedPositions = (positionsToSort) => {
+                const sorted = [...positionsToSort];
+
+                // If no column is sorted, sort by manual/auto
+                if (!sortConfig.key) {
+                    return sorted.sort((a, b) => {
+                        if (a.manual === b.manual) return 0;
+                        return a.manual ? 1 : -1;
+                    });
+                }
+
+                // Sort by selected column
+                return sorted.sort((a, b) => {
+                    let aVal, bVal;
+                    const accA = getAccount(a.accountId);
+                    const accB = getAccount(b.accountId);
+
+                    switch (sortConfig.key) {
+                        case 'symbol':
+                            aVal = a.symbol.toLowerCase();
+                            bVal = b.symbol.toLowerCase();
+                            break;
+                        case 'account':
+                            aVal = accA.name.toLowerCase();
+                            bVal = accB.name.toLowerCase();
+                            break;
+                        case 'shares':
+                            aVal = a.manual ? 0 : a.shares;
+                            bVal = b.manual ? 0 : b.shares;
+                            break;
+                        case 'avgCost':
+                            aVal = a.manual ? 0 : a.avgCost;
+                            bVal = b.manual ? 0 : b.avgCost;
+                            break;
+                        case 'price':
+                            aVal = a.manual ? a.balance : a.currentPrice;
+                            bVal = b.manual ? b.balance : b.currentPrice;
+                            break;
+                        case 'value':
+                            aVal = a.manual ? a.balance : a.shares * a.currentPrice;
+                            bVal = b.manual ? b.balance : b.shares * b.currentPrice;
+                            break;
+                        case 'return':
+                            if (a.manual || b.manual) {
+                                aVal = 0;
+                                bVal = 0;
+                            } else {
+                                const gainA = (a.shares * a.currentPrice) - (a.shares * a.avgCost);
+                                const gainB = (b.shares * b.currentPrice) - (b.shares * b.avgCost);
+                                const pctA = (gainA / (a.shares * a.avgCost)) * 100;
+                                const pctB = (gainB / (b.shares * b.avgCost)) * 100;
+                                aVal = pctA;
+                                bVal = pctB;
+                            }
+                            break;
+                        default:
+                            return 0;
+                    }
+
+                    if (typeof aVal === 'string') {
+                        return sortConfig.direction === 'asc'
+                            ? aVal.localeCompare(bVal)
+                            : bVal.localeCompare(aVal);
+                    }
+
+                    return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
+                });
+            };
+
+            const metrics = useMemo(() => {
+                const result = positions.reduce((acc, pos) => {
+                    const account = getAccount(pos.accountId);
+                    const accountName = account.name;
+                    const accountId = pos.accountId;
+                    const isWithdrawable = account.type !== 'RRSP';
+                    const currency = pos.currency || 'CAD';
+
+                    if (!acc.byName[accountName]) acc.byName[accountName] = { value: 0, gain: 0, cost: 0, color: account.color };
+                    if (!acc.byAccount[accountId]) acc.byAccount[accountId] = { value: 0, gain: 0, cost: 0 };
+
+                    if (pos.manual) {
+                        const balance = convertToDisplay(pos.balance, currency);
+                        acc.totalValue += balance;
+                        acc.byName[accountName].value += balance;
+                        acc.byAccount[accountId].value += balance;
+                        if (isWithdrawable) acc.withdrawable += balance;
+                    } else {
+                        const cost = convertToDisplay(pos.shares * pos.avgCost, currency);
+                        const current = convertToDisplay(pos.shares * (pos.currentPrice || pos.avgCost), currency);
+                        acc.totalCost += cost;
+                        acc.totalValue += current;
+                        acc.totalGain += current - cost;
+                        acc.byName[accountName].value += current;
+                        acc.byName[accountName].gain += current - cost;
+                        acc.byName[accountName].cost += cost;
+                        acc.byAccount[accountId].value += current;
+                        acc.byAccount[accountId].gain += current - cost;
+                        acc.byAccount[accountId].cost += cost;
+                        if (isWithdrawable) acc.withdrawable += current;
+                    }
+                    return acc;
+                }, { totalCost: 0, totalValue: 0, totalGain: 0, withdrawable: 0, byName: {}, byAccount: {} });
+                return result;
+            }, [positions, accounts, displayCurrency, exchangeRate, brlRate]);
+
+            const returnPct = metrics.totalCost > 0 ? (metrics.totalGain / metrics.totalCost) * 100 : 0;
+
+            const groupedByAccount = useMemo(() => {
+                const grouped = {};
+                positions.forEach(pos => {
+                    const accId = pos.accountId;
+                    if (!grouped[accId]) {
+                        grouped[accId] = {
+                            account: getAccount(accId),
+                            positions: [],
+                            totalValue: 0,
+                            totalCost: 0,
+                            totalGain: 0
+                        };
+                    }
+                    grouped[accId].positions.push(pos);
+
+                    if (pos.manual) {
+                        grouped[accId].totalValue += pos.balance;
+                    } else {
+                        const cost = pos.shares * pos.avgCost;
+                        const value = pos.shares * pos.currentPrice;
+                        grouped[accId].totalCost += cost;
+                        grouped[accId].totalValue += value;
+                        grouped[accId].totalGain += value - cost;
+                    }
+                });
+                return Object.values(grouped);
+            }, [positions, accounts]);
+
+            const groupedByType = useMemo(() => {
+                const grouped = {};
+                positions.forEach(pos => {
+                    const account = getAccount(pos.accountId);
+                    const type = account.type;
+                    if (!grouped[type]) {
+                        grouped[type] = {
+                            type: type,
+                            positions: [],
+                            totalValue: 0,
+                            totalCost: 0,
+                            totalGain: 0
+                        };
+                    }
+                    grouped[type].positions.push(pos);
+
+                    if (pos.manual) {
+                        grouped[type].totalValue += pos.balance;
+                    } else {
+                        const cost = pos.shares * pos.avgCost;
+                        const value = pos.shares * pos.currentPrice;
+                        grouped[type].totalCost += cost;
+                        grouped[type].totalValue += value;
+                        grouped[type].totalGain += value - cost;
+                    }
+                });
+                return Object.values(grouped);
+            }, [positions, accounts]);
+
+            const styles = {
+                container: { maxWidth: '1200px', margin: '0 auto', padding: '40px 24px' },
+                header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' },
+                title: { fontSize: '28px', fontWeight: '600', letterSpacing: '-0.5px' },
+                tabs: { display: 'flex', gap: '4px', background: colors.card, padding: '4px', borderRadius: '10px', border: `1px solid ${colors.border}` },
+                tab: (active) => ({
+                    padding: '10px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: '500',
+                    background: active ? (darkMode ? '#27272a' : '#e4e4e7') : 'transparent',
+                    color: active ? colors.text : colors.textMuted, transition: 'all 0.2s'
+                }),
+                themeBtn: {
+                    background: colors.card, border: `1px solid ${colors.border}`, borderRadius: '10px', padding: '10px',
+                    cursor: 'pointer', color: colors.text, display: 'flex', alignItems: 'center', justifyContent: 'center'
+                },
+                statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '32px' },
+                statCard: { background: colors.card, borderRadius: '14px', padding: '20px', border: `1px solid ${colors.border}` },
+                statLabel: { fontSize: '12px', color: colors.textMuted, marginBottom: '6px', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.5px' },
+                statValue: { fontSize: '24px', fontWeight: '600', letterSpacing: '-0.5px' },
+                statSub: { fontSize: '12px', color: colors.textMuted, marginTop: '2px' },
+                section: { background: colors.card, borderRadius: '14px', border: `1px solid ${colors.border}`, overflow: 'hidden', marginBottom: '20px' },
+                sectionHeader: { padding: '16px 20px', borderBottom: `1px solid ${colors.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+                sectionTitle: { fontSize: '14px', fontWeight: '600' },
+                formGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px', padding: '16px 20px' },
+                input: { background: colors.input, border: `1px solid ${colors.border}`, borderRadius: '8px', padding: '10px 12px', fontSize: '14px', color: colors.text, outline: 'none', width: '100%' },
+                select: { background: colors.input, border: `1px solid ${colors.border}`, borderRadius: '8px', padding: '10px 12px', fontSize: '14px', color: colors.text, outline: 'none', cursor: 'pointer', width: '100%' },
+                btnPrimary: { background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 16px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' },
+                btnSecondary: { background: 'transparent', color: colors.textMuted, border: `1px solid ${colors.border}`, borderRadius: '8px', padding: '8px 12px', fontSize: '13px', fontWeight: '500', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' },
+                btnIcon: { background: 'transparent', border: 'none', color: colors.textDim, cursor: 'pointer', padding: '6px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+                table: { width: '100%', borderCollapse: 'collapse' },
+                th: { textAlign: 'left', padding: '12px 20px', fontSize: '11px', fontWeight: '500', color: colors.textDim, textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: `1px solid ${colors.border}` },
+                thSortable: { textAlign: 'left', padding: '12px 20px', fontSize: '11px', fontWeight: '500', color: colors.textDim, textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: `1px solid ${colors.border}`, cursor: 'pointer', userSelect: 'none', transition: 'color 0.2s' },
+                td: { padding: '14px 20px', fontSize: '14px', borderBottom: `1px solid ${colors.border}` },
+                badge: (color) => ({ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', background: `${color}20`, color: color, border: `1px solid ${color}40` }),
+                positive: { color: '#22c55e' },
+                negative: { color: '#ef4444' },
+                miniInput: { background: colors.input, border: `1px solid ${colors.border}`, borderRadius: '6px', padding: '4px 8px', fontSize: '14px', color: colors.text, width: '70px', outline: 'none' },
+                colorInput: { width: '36px', height: '36px', borderRadius: '8px', border: `1px solid ${colors.border}`, cursor: 'pointer', padding: '2px' },
+                accountCard: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: `1px solid ${colors.border}` },
+                accountInfo: { display: 'flex', alignItems: 'center', gap: '12px' },
+                accountDot: (color) => ({ width: '10px', height: '10px', borderRadius: '50%', background: color }),
+                accountName: { fontWeight: '600', fontSize: '15px' },
+                accountMeta: { fontSize: '13px', color: colors.textMuted },
+            };
+
+            if (loading) {
+                return <div style={{ ...styles.container, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+                    <div style={{ color: colors.textMuted }}>Loading...</div>
+                </div>;
+            }
+
+            return (
+                <div style={styles.container}>
+                    <style>{`
+                        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                        input:focus, select:focus { border-color: ${darkMode ? '#3f3f46' : '#a1a1aa'} !important; }
+                        input::placeholder { color: ${colors.textDim}; }
+                        tr:hover { background: ${colors.hover}; }
+                        button:hover:not(:disabled) { opacity: 0.85; }
+                        th:hover { color: ${colors.text} !important; }
+                        input[type="color"] { -webkit-appearance: none; border: none; }
+                        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+                        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
+                    `}</style>
+
+                    <header style={styles.header}>
+                        <h1 style={styles.title}>Portfolio</h1>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={styles.tabs}>
+                                <button style={styles.tab(activeTab === 'portfolio')} onClick={() => setActiveTab('portfolio')}>Portfolio</button>
+                                <button style={styles.tab(activeTab === 'accounts')} onClick={() => setActiveTab('accounts')}>Accounts</button>
+                            </div>
+                            <button style={styles.themeBtn} onClick={toggleTheme} title={darkMode ? 'Light mode' : 'Dark mode'}>
+                                {darkMode ? <Icons.Sun /> : <Icons.Moon />}
+                            </button>
+                        </div>
+                    </header>
+
+                    {activeTab === 'portfolio' && (
+                        <>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontSize: '13px', color: colors.textMuted }}>Display:</span>
+                                    <div style={{ display: 'flex', background: colors.card, borderRadius: '8px', border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
+                                        <button onClick={() => setDisplayCurrency('CAD')} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: '500', border: 'none', cursor: 'pointer', background: displayCurrency === 'CAD' ? colors.border : 'transparent', color: displayCurrency === 'CAD' ? colors.text : colors.textMuted }}>CAD</button>
+                                        <button onClick={() => setDisplayCurrency('USD')} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: '500', border: 'none', cursor: 'pointer', background: displayCurrency === 'USD' ? colors.border : 'transparent', color: displayCurrency === 'USD' ? colors.text : colors.textMuted }}>USD</button>
+                                        <button onClick={() => setDisplayCurrency('BRL')} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: '500', border: 'none', cursor: 'pointer', background: displayCurrency === 'BRL' ? colors.border : 'transparent', color: displayCurrency === 'BRL' ? colors.text : colors.textMuted }}>BRL</button>
+                                    </div>
+                                    <span style={{ fontSize: '11px', color: colors.textDim }}>1 USD = {exchangeRate.toFixed(2)} CAD · {brlRate.toFixed(2)} BRL</span>
+                                </div>
+                                <p style={{ fontSize: '13px', color: colors.textMuted }}>
+                                    {lastUpdate ? `Last updated ${lastUpdate.toLocaleTimeString()}` : '\u00A0'}
+                                </p>
+                            </div>
+
+                            <div style={styles.statsGrid}>
+                                <div style={styles.statCard}>
+                                    <div style={styles.statLabel}>Total Value</div>
+                                    <div style={styles.statValue} className="mono">${metrics.totalValue.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                    <div style={styles.statSub} className="mono">Cost ${metrics.totalCost.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                </div>
+                                <div style={styles.statCard}>
+                                    <div style={styles.statLabel}>Total Return</div>
+                                    <div style={{ ...styles.statValue, ...(metrics.totalGain >= 0 ? styles.positive : styles.negative), display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        {metrics.totalGain >= 0 ? <Icons.TrendUp /> : <Icons.TrendDown />}
+                                        <span className="mono">{metrics.totalGain >= 0 ? '+' : ''}${Math.abs(metrics.totalGain).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div style={{ ...styles.statSub, ...(returnPct >= 0 ? styles.positive : styles.negative) }} className="mono">{returnPct >= 0 ? '+' : ''}{returnPct.toFixed(2)}%</div>
+                                </div>
+                                {metrics.withdrawable > 0 && (
+                                    <div style={styles.statCard}>
+                                        <div style={styles.statLabel}>Withdrawable</div>
+                                        <div style={styles.statValue} className="mono">${metrics.withdrawable.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                        <div style={styles.statSub}>Excludes RRSP</div>
+                                    </div>
+                                )}
+                                {Object.entries(metrics.byName).map(([name, data]) => {
+                                    const pct = data.cost > 0 ? (data.gain / data.cost) * 100 : 0;
+                                    return (
+                                        <div key={name} style={styles.statCard}>
+                                            <div style={{ ...styles.statLabel, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <span style={{ ...styles.accountDot(data.color), width: '8px', height: '8px' }} />
+                                                {name}
+                                            </div>
+                                            <div style={styles.statValue} className="mono">${data.value.toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                                            {data.cost > 0 && <div style={{ ...styles.statSub, ...(data.gain >= 0 ? styles.positive : styles.negative) }} className="mono">{data.gain >= 0 ? '+' : ''}{pct.toFixed(1)}%</div>}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div style={styles.section}>
+                                <div style={styles.sectionHeader}><span style={styles.sectionTitle}>Add Position</span></div>
+                                <div style={styles.formGrid}>
+                                    <input type="text" placeholder={newPosition.manual ? "Fund Name" : "Symbol"} value={newPosition.symbol} onChange={(e) => setNewPosition({ ...newPosition, symbol: e.target.value })} style={styles.input} onKeyDown={(e) => e.key === 'Enter' && addPosition()} />
+                                    {!newPosition.manual && <input type="number" placeholder="Shares" value={newPosition.shares} onChange={(e) => setNewPosition({ ...newPosition, shares: e.target.value })} style={styles.input} step="0.01" />}
+                                    {!newPosition.manual && <input type="number" placeholder="Avg Cost" value={newPosition.avgCost} onChange={(e) => setNewPosition({ ...newPosition, avgCost: e.target.value })} style={styles.input} step="0.01" />}
+                                    {newPosition.manual && <input type="number" placeholder="Balance" value={newPosition.balance} onChange={(e) => setNewPosition({ ...newPosition, balance: e.target.value })} style={styles.input} step="0.01" />}
+                                    <select value={newPosition.accountId} onChange={(e) => setNewPosition({ ...newPosition, accountId: e.target.value })} style={styles.select}>
+                                        <option value="">Account...</option>
+                                        {accounts.map(a => <option key={a.id} value={a.id}>{a.name} · {a.type} · {a.provider}</option>)}
+                                    </select>
+                                    <select value={newPosition.currency} onChange={(e) => setNewPosition({ ...newPosition, currency: e.target.value })} style={styles.select}>
+                                        {currencies.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: colors.textMuted, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                        <input type="checkbox" checked={newPosition.manual} onChange={(e) => setNewPosition({ ...newPosition, manual: e.target.checked })} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
+                                        Manual
+                                    </label>
+                                    <button onClick={addPosition} style={styles.btnPrimary}><Icons.Plus /> Add</button>
+                                </div>
+                            </div>
+
+                            <div style={styles.section}>
+                                <div style={styles.sectionHeader}>
+                                    <span style={styles.sectionTitle}>Holdings ({positions.length})</span>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', background: colors.card, borderRadius: '8px', border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
+                                            <button onClick={() => setViewMode('expanded')} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '500', border: 'none', cursor: 'pointer', background: viewMode === 'expanded' ? colors.border : 'transparent', color: viewMode === 'expanded' ? colors.text : colors.textMuted }}>By Position</button>
+                                            <button onClick={() => setViewMode('collapsed')} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '500', border: 'none', cursor: 'pointer', background: viewMode === 'collapsed' ? colors.border : 'transparent', color: viewMode === 'collapsed' ? colors.text : colors.textMuted }}>By Account</button>
+                                            <button onClick={() => setViewMode('byType')} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '500', border: 'none', cursor: 'pointer', background: viewMode === 'byType' ? colors.border : 'transparent', color: viewMode === 'byType' ? colors.text : colors.textMuted }}>By Type</button>
+                                        </div>
+                                        <div style={{ display: 'flex', background: colors.card, borderRadius: '8px', border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
+                                            <button onClick={() => setTableCurrency('original')} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '500', border: 'none', cursor: 'pointer', background: tableCurrency === 'original' ? colors.border : 'transparent', color: tableCurrency === 'original' ? colors.text : colors.textMuted }}>Original</button>
+                                            <button onClick={() => setTableCurrency('CAD')} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '500', border: 'none', cursor: 'pointer', background: tableCurrency === 'CAD' ? colors.border : 'transparent', color: tableCurrency === 'CAD' ? colors.text : colors.textMuted }}>CAD</button>
+                                            <button onClick={() => setTableCurrency('USD')} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '500', border: 'none', cursor: 'pointer', background: tableCurrency === 'USD' ? colors.border : 'transparent', color: tableCurrency === 'USD' ? colors.text : colors.textMuted }}>USD</button>
+                                            <button onClick={() => setTableCurrency('BRL')} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '500', border: 'none', cursor: 'pointer', background: tableCurrency === 'BRL' ? colors.border : 'transparent', color: tableCurrency === 'BRL' ? colors.text : colors.textMuted }}>BRL</button>
+                                        </div>
+                                        <button onClick={updateAllPrices} disabled={refreshing || !positions.length} style={{ ...styles.btnSecondary, opacity: refreshing ? 0.5 : 1 }}>
+                                            <Icons.Refresh spinning={refreshing} /> {refreshing ? 'Updating...' : 'Refresh'}
+                                        </button>
+                                    </div>
+                                </div>
+                                {!positions.length ? (
+                                    <div style={{ padding: '48px 20px', textAlign: 'center', color: colors.textDim }}>
+                                        <p>No positions yet</p>
+                                        <p style={{ marginTop: '8px', fontSize: '13px' }}>Add your first stock above. Use .TO for Canadian (VFV.TO)</p>
+                                    </div>
+                                ) : (
+                                    <div style={{ overflowX: 'auto' }}>
+                                        <table style={styles.table}>
+                                            <thead>
+                                                <tr>
+                                                    <th style={styles.thSortable} onClick={() => handleSort('symbol')}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            Symbol
+                                                            {sortConfig.key === 'symbol' && (
+                                                                sortConfig.direction === 'asc' ? <Icons.ChevronUp /> : <Icons.ChevronDown />
+                                                            )}
+                                                        </div>
+                                                    </th>
+                                                    <th style={styles.thSortable} onClick={() => handleSort('account')}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            Account
+                                                            {sortConfig.key === 'account' && (
+                                                                sortConfig.direction === 'asc' ? <Icons.ChevronUp /> : <Icons.ChevronDown />
+                                                            )}
+                                                        </div>
+                                                    </th>
+                                                    <th style={{ ...styles.thSortable, textAlign: 'right' }} onClick={() => handleSort('shares')}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                                                            Shares
+                                                            {sortConfig.key === 'shares' && (
+                                                                sortConfig.direction === 'asc' ? <Icons.ChevronUp /> : <Icons.ChevronDown />
+                                                            )}
+                                                        </div>
+                                                    </th>
+                                                    <th style={{ ...styles.thSortable, textAlign: 'right' }} onClick={() => handleSort('avgCost')}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                                                            Avg Cost
+                                                            {sortConfig.key === 'avgCost' && (
+                                                                sortConfig.direction === 'asc' ? <Icons.ChevronUp /> : <Icons.ChevronDown />
+                                                            )}
+                                                        </div>
+                                                    </th>
+                                                    <th style={{ ...styles.thSortable, textAlign: 'right' }} onClick={() => handleSort('price')}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                                                            Price
+                                                            {sortConfig.key === 'price' && (
+                                                                sortConfig.direction === 'asc' ? <Icons.ChevronUp /> : <Icons.ChevronDown />
+                                                            )}
+                                                        </div>
+                                                    </th>
+                                                    <th style={{ ...styles.thSortable, textAlign: 'right' }} onClick={() => handleSort('value')}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                                                            Value
+                                                            {sortConfig.key === 'value' && (
+                                                                sortConfig.direction === 'asc' ? <Icons.ChevronUp /> : <Icons.ChevronDown />
+                                                            )}
+                                                        </div>
+                                                    </th>
+                                                    <th style={{ ...styles.thSortable, textAlign: 'right' }} onClick={() => handleSort('return')}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                                                            Return
+                                                            {sortConfig.key === 'return' && (
+                                                                sortConfig.direction === 'asc' ? <Icons.ChevronUp /> : <Icons.ChevronDown />
+                                                            )}
+                                                        </div>
+                                                    </th>
+                                                    <th style={{ ...styles.th, width: '50px' }}></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {viewMode === 'byType' ? (
+                                                    groupedByType.map((group) => {
+                                                        // Convert totals to table currency
+                                                        let displayValue = 0, displayCost = 0, displayGain = 0;
+                                                        const currencySymbol = tableCurrency === 'original' ? '' : tableCurrency;
+
+                                                        group.positions.forEach(pos => {
+                                                            const posCurrency = pos.currency || 'CAD';
+                                                            if (pos.manual) {
+                                                                const converted = convertTableValue(pos.balance, posCurrency);
+                                                                displayValue += converted.value;
+                                                            } else {
+                                                                const cost = pos.shares * pos.avgCost;
+                                                                const value = pos.shares * pos.currentPrice;
+                                                                const convertedCost = convertTableValue(cost, posCurrency);
+                                                                const convertedValue = convertTableValue(value, posCurrency);
+                                                                displayCost += convertedCost.value;
+                                                                displayValue += convertedValue.value;
+                                                                displayGain += convertedValue.value - convertedCost.value;
+                                                            }
+                                                        });
+
+                                                        const pct = displayCost > 0 ? (displayGain / displayCost) * 100 : 0;
+                                                        return (
+                                                            <tr key={group.type}>
+                                                                <td style={styles.td}>
+                                                                    <div style={{ fontWeight: '600' }}>{group.type}</div>
+                                                                    <div style={{ fontSize: '12px', color: colors.textMuted }}>{group.positions.length} position{group.positions.length !== 1 ? 's' : ''}</div>
+                                                                </td>
+                                                                <td style={styles.td}>
+                                                                    <div style={{ fontSize: '12px', color: colors.textMuted }}>
+                                                                        {[...new Set(group.positions.map(p => getAccount(p.accountId).name))].join(', ')}
+                                                                    </div>
+                                                                </td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', color: colors.textDim }}>—</td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', color: colors.textDim }}>—</td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', color: colors.textDim }}>—</td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', fontWeight: '600' }} className="mono">
+                                                                    {currencySymbol && `${currencySymbol} `}${displayValue.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                </td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', ...(displayGain >= 0 ? styles.positive : styles.negative) }} className="mono">
+                                                                    {displayCost > 0 ? (
+                                                                        <>
+                                                                            <div style={{ fontWeight: '500' }}>{pct >= 0 ? '+' : ''}{pct.toFixed(1)}%</div>
+                                                                            <div style={{ fontSize: '12px', opacity: 0.8 }}>{displayGain >= 0 ? '+' : ''}{currencySymbol && `${currencySymbol} `}${displayGain.toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                                                                        </>
+                                                                    ) : '—'}
+                                                                </td>
+                                                                <td style={styles.td}></td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                ) : viewMode === 'collapsed' ? (
+                                                    groupedByAccount.map((group) => {
+                                                        // Convert totals to table currency
+                                                        let displayValue = 0, displayCost = 0, displayGain = 0;
+                                                        const currencySymbol = tableCurrency === 'original' ? '' : tableCurrency;
+
+                                                        group.positions.forEach(pos => {
+                                                            const posCurrency = pos.currency || 'CAD';
+                                                            if (pos.manual) {
+                                                                const converted = convertTableValue(pos.balance, posCurrency);
+                                                                displayValue += converted.value;
+                                                            } else {
+                                                                const cost = pos.shares * pos.avgCost;
+                                                                const value = pos.shares * pos.currentPrice;
+                                                                const convertedCost = convertTableValue(cost, posCurrency);
+                                                                const convertedValue = convertTableValue(value, posCurrency);
+                                                                displayCost += convertedCost.value;
+                                                                displayValue += convertedValue.value;
+                                                                displayGain += convertedValue.value - convertedCost.value;
+                                                            }
+                                                        });
+
+                                                        const pct = displayCost > 0 ? (displayGain / displayCost) * 100 : 0;
+                                                        return (
+                                                            <tr key={group.account.id}>
+                                                                <td style={styles.td}>
+                                                                    <div style={{ fontWeight: '600' }}>{group.account.name}</div>
+                                                                    <div style={{ fontSize: '12px', color: colors.textMuted }}>{group.positions.length} position{group.positions.length !== 1 ? 's' : ''}</div>
+                                                                </td>
+                                                                <td style={styles.td}>
+                                                                    <span style={styles.badge(group.account.color)}>{group.account.type}</span>
+                                                                    <div style={{ fontSize: '11px', color: colors.textMuted, marginTop: '4px' }}>{group.account.provider}</div>
+                                                                </td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', color: colors.textDim }}>—</td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', color: colors.textDim }}>—</td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', color: colors.textDim }}>—</td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', fontWeight: '600' }} className="mono">
+                                                                    {currencySymbol && `${currencySymbol} `}${displayValue.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                </td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', ...(displayGain >= 0 ? styles.positive : styles.negative) }} className="mono">
+                                                                    {displayCost > 0 ? (
+                                                                        <>
+                                                                            <div style={{ fontWeight: '500' }}>{pct >= 0 ? '+' : ''}{pct.toFixed(1)}%</div>
+                                                                            <div style={{ fontSize: '12px', opacity: 0.8 }}>{displayGain >= 0 ? '+' : ''}{currencySymbol && `${currencySymbol} `}${displayGain.toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                                                                        </>
+                                                                    ) : '—'}
+                                                                </td>
+                                                                <td style={styles.td}></td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                ) : (
+                                                    getSortedPositions(positions).map((pos) => {
+                                                    const acc = getAccount(pos.accountId);
+                                                    if (pos.manual) {
+                                                        const posCurrency = pos.currency || 'CAD';
+                                                        const converted = convertTableValue(pos.balance, posCurrency);
+                                                        const displayCurrency = converted.currency;
+                                                        return (
+                                                            <tr key={pos.id}>
+                                                                <td style={styles.td}>
+                                                                    <div style={{ fontWeight: '600' }}>{pos.symbol}</div>
+                                                                    <div style={{ fontSize: '12px', color: colors.textMuted }}>
+                                                                        <span style={{ padding: '2px 6px', borderRadius: '4px', background: colors.border, fontSize: '10px', fontWeight: '600' }}>{pos.currency}</span>
+                                                                        <span style={{ marginLeft: '4px', padding: '2px 6px', borderRadius: '4px', background: colors.border, fontSize: '10px' }}>Manual</span>
+                                                                    </div>
+                                                                </td>
+                                                                <td style={styles.td}>
+                                                                    <span style={styles.badge(acc.color)}>{acc.name}</span>
+                                                                    <div style={{ fontSize: '11px', color: colors.textMuted, marginTop: '4px' }}>{acc.type} · {acc.provider}</div>
+                                                                </td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', color: colors.textDim }}>—</td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', color: colors.textDim }}>—</td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', color: colors.textDim }}>—</td>
+                                                                <td style={{ ...styles.td, textAlign: 'right' }}>
+                                                                    {editingId === pos.id ? (
+                                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                                                                            <input type="number" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} style={{ ...styles.miniInput, width: '90px' }} className="mono" autoFocus step="0.01"
+                                                                                onKeyDown={(e) => { if (e.key === 'Enter') saveEditPrice(pos.id); if (e.key === 'Escape') setEditingId(null); }} />
+                                                                            <button onClick={() => saveEditPrice(pos.id)} style={{ ...styles.btnIcon, color: '#3b82f6' }}><Icons.Check /></button>
+                                                                            <button onClick={() => setEditingId(null)} style={styles.btnIcon}><Icons.X /></button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div>
+                                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                                                                                <span className="mono" style={{ fontWeight: '600' }}>{displayCurrency} ${converted.value.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                                                <button onClick={() => { setEditingId(pos.id); setEditPrice(pos.balance.toString()); }} style={styles.btnIcon} title="Edit balance"><Icons.Edit /></button>
+                                                                            </div>
+                                                                            {pos.lastUpdated && <div style={{ fontSize: '11px', color: colors.textMuted, marginTop: '2px' }}>as of {new Date(pos.lastUpdated).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>}
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', color: colors.textDim }}>—</td>
+                                                                <td style={{ ...styles.td, textAlign: 'right' }}>
+                                                                    <button onClick={() => deletePosition(pos.id)} style={styles.btnIcon} title="Delete"><Icons.Trash /></button>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    }
+                                                    const posCurrency = pos.currency || 'CAD';
+                                                    const value = pos.shares * pos.currentPrice;
+                                                    const cost = pos.shares * pos.avgCost;
+                                                    const gain = value - cost;
+                                                    const pct = (gain / cost) * 100;
+
+                                                    // Convert values to table currency
+                                                    const convertedAvgCost = convertTableValue(pos.avgCost, posCurrency);
+                                                    const convertedPrice = convertTableValue(pos.currentPrice, posCurrency);
+                                                    const convertedValue = convertTableValue(value, posCurrency);
+                                                    const convertedGain = convertTableValue(gain, posCurrency);
+                                                    const displayCurrency = convertedValue.currency;
+
+                                                    return (
+                                                        <tr key={pos.id}>
+                                                            <td style={styles.td}>
+                                                                <div style={{ fontWeight: '600' }}>{pos.symbol}</div>
+                                                                <div style={{ fontSize: '12px', color: colors.textMuted }}>
+                                                                    <span style={{ padding: '2px 6px', borderRadius: '4px', background: colors.border, fontSize: '10px', fontWeight: '600' }}>{pos.currency}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td style={styles.td}>
+                                                                <span style={styles.badge(acc.color)}>{acc.name}</span>
+                                                                <div style={{ fontSize: '11px', color: colors.textMuted, marginTop: '4px' }}>{acc.type} · {acc.provider}</div>
+                                                            </td>
+                                                            <td style={{ ...styles.td, textAlign: 'right' }} className="mono">{pos.shares.toLocaleString('en-CA', { minimumFractionDigits: 2 })}</td>
+                                                            <td style={{ ...styles.td, textAlign: 'right', color: colors.textMuted }} className="mono">{displayCurrency} ${convertedAvgCost.value.toFixed(2)}</td>
+                                                            <td style={{ ...styles.td, textAlign: 'right' }}>
+                                                                {editingId === pos.id ? (
+                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                                                                        <input type="number" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} style={styles.miniInput} className="mono" autoFocus step="0.01"
+                                                                            onKeyDown={(e) => { if (e.key === 'Enter') saveEditPrice(pos.id); if (e.key === 'Escape') setEditingId(null); }} />
+                                                                        <button onClick={() => saveEditPrice(pos.id)} style={{ ...styles.btnIcon, color: '#3b82f6' }}><Icons.Check /></button>
+                                                                        <button onClick={() => setEditingId(null)} style={styles.btnIcon}><Icons.X /></button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                                                                        <span className="mono" style={{ fontWeight: '500' }}>{displayCurrency} ${convertedPrice.value.toFixed(2)}</span>
+                                                                        <button onClick={() => { setEditingId(pos.id); setEditPrice(pos.currentPrice.toString()); }} style={styles.btnIcon} title="Edit price"><Icons.Edit /></button>
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                            <td style={{ ...styles.td, textAlign: 'right', fontWeight: '500' }} className="mono">{displayCurrency} ${convertedValue.value.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                                            <td style={{ ...styles.td, textAlign: 'right', ...(gain >= 0 ? styles.positive : styles.negative) }} className="mono">
+                                                                <div style={{ fontWeight: '500' }}>{gain >= 0 ? '+' : ''}{pct.toFixed(1)}%</div>
+                                                                <div style={{ fontSize: '12px', opacity: 0.8 }}>{convertedGain.value >= 0 ? '+' : ''}{displayCurrency} ${Math.abs(convertedGain.value).toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                                                            </td>
+                                                            <td style={{ ...styles.td, textAlign: 'right' }}>
+                                                                <button onClick={() => deletePosition(pos.id)} style={styles.btnIcon} title="Delete"><Icons.Trash /></button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+
+                            <footer style={{ textAlign: 'center', padding: '32px 20px', color: colors.textDim, fontSize: '13px' }}>
+                                Canadian ETFs: add .TO (VFV.TO, XIC.TO) | US stocks: regular tickers (AAPL, MSFT) | Supports CAD, USD, BRL
+                            </footer>
+                        </>
+                    )}
+
+                    {activeTab === 'accounts' && (
+                        <>
+                            <div style={styles.section}>
+                                <div style={styles.sectionHeader}><span style={styles.sectionTitle}>Backup & Restore</span></div>
+                                <div style={{ padding: '16px 20px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                    <button onClick={exportData} style={styles.btnPrimary}>
+                                        <Icons.Download /> Export Data
+                                    </button>
+                                    <label style={{ ...styles.btnSecondary, cursor: 'pointer', margin: 0 }}>
+                                        <Icons.Upload /> Import Data
+                                        <input type="file" accept=".json" onChange={importData} style={{ display: 'none' }} />
+                                    </label>
+                                    <span style={{ fontSize: '12px', color: colors.textMuted }}>
+                                        Backup your portfolio data to a JSON file
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div style={styles.section}>
+                                <div style={styles.sectionHeader}><span style={styles.sectionTitle}>Add Account</span></div>
+                                <div style={{ ...styles.formGrid, gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
+                                    <input type="text" placeholder="Account Name" value={newAccount.name} onChange={(e) => setNewAccount({ ...newAccount, name: e.target.value })} style={styles.input} />
+                                    <select value={newAccount.type} onChange={(e) => setNewAccount({ ...newAccount, type: e.target.value })} style={styles.select}>
+                                        {accountTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                    <input type="text" placeholder="Provider (e.g. Questrade)" value={newAccount.provider} onChange={(e) => setNewAccount({ ...newAccount, provider: e.target.value })} style={styles.input} />
+                                    <input type="color" value={newAccount.color} onChange={(e) => setNewAccount({ ...newAccount, color: e.target.value })} style={styles.colorInput} title="Pick a color" />
+                                    <button onClick={addAccount} style={styles.btnPrimary}><Icons.Plus /> Add</button>
+                                </div>
+                            </div>
+
+                            <div style={styles.section}>
+                                <div style={styles.sectionHeader}><span style={styles.sectionTitle}>Your Accounts ({accounts.length})</span></div>
+                                {!accounts.length ? (
+                                    <div style={{ padding: '48px 20px', textAlign: 'center', color: colors.textDim }}>No accounts yet</div>
+                                ) : (
+                                    accounts.map((acc, index) => {
+                                        const accMetrics = metrics.byAccount[acc.id] || { value: 0, gain: 0 };
+                                        const isEditing = editingAccountId === acc.id;
+                                        return (
+                                            <div key={acc.id} style={styles.accountCard}>
+                                                {isEditing && editingAccount ? (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, flexWrap: 'wrap' }}>
+                                                        <input type="color" value={editingAccount.color} onChange={(e) => setEditingAccount({ ...editingAccount, color: e.target.value })} style={{ ...styles.colorInput, width: '32px', height: '32px' }} />
+                                                        <input type="text" value={editingAccount.name} onChange={(e) => setEditingAccount({ ...editingAccount, name: e.target.value })} style={{ ...styles.input, width: '120px' }} />
+                                                        <select value={editingAccount.type} onChange={(e) => setEditingAccount({ ...editingAccount, type: e.target.value })} style={{ ...styles.select, width: '120px' }}>
+                                                            {accountTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                                                        </select>
+                                                        <input type="text" value={editingAccount.provider} onChange={(e) => setEditingAccount({ ...editingAccount, provider: e.target.value })} style={{ ...styles.input, width: '140px' }} />
+                                                        <button onClick={saveEditAccount} style={{ ...styles.btnIcon, color: '#3b82f6' }}><Icons.Check /></button>
+                                                        <button onClick={cancelEditAccount} style={styles.btnIcon}><Icons.X /></button>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <div style={styles.accountInfo}>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginRight: '8px' }}>
+                                                                <button onClick={() => moveAccount(index, -1)} disabled={index === 0} style={{ ...styles.btnIcon, padding: '2px', opacity: index === 0 ? 0.3 : 1 }} title="Move up"><Icons.ChevronUp /></button>
+                                                                <button onClick={() => moveAccount(index, 1)} disabled={index === accounts.length - 1} style={{ ...styles.btnIcon, padding: '2px', opacity: index === accounts.length - 1 ? 0.3 : 1 }} title="Move down"><Icons.ChevronDown /></button>
+                                                            </div>
+                                                            <span style={styles.accountDot(acc.color)} />
+                                                            <div>
+                                                                <div style={styles.accountName}>{acc.name}</div>
+                                                                <div style={styles.accountMeta}>
+                                                                    <Icons.Building /> {acc.provider} · {acc.type}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                                            <div style={{ textAlign: 'right' }}>
+                                                                <div className="mono" style={{ fontWeight: '600' }}>${accMetrics.value.toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                                                                <div className="mono" style={{ fontSize: '12px', ...(accMetrics.gain >= 0 ? styles.positive : styles.negative) }}>
+                                                                    {accMetrics.gain >= 0 ? '+' : ''}${accMetrics.gain.toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ display: 'flex', gap: '4px' }}>
+                                                                <button onClick={() => startEditAccount(acc)} style={styles.btnIcon} title="Edit"><Icons.Edit /></button>
+                                                                <button onClick={() => deleteAccount(acc.id)} style={styles.btnIcon} title="Delete"><Icons.Trash /></button>
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
