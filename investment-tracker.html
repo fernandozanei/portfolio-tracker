@@ -39,7 +39,7 @@
     </script>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
 
         const Icons = {
             TrendUp: () => (
@@ -125,6 +125,30 @@
                     <polyline points="17 8 12 3 7 8"/>
                     <line x1="12" y1="3" x2="12" y2="15"/>
                 </svg>
+            ),
+            File: () => (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                    <polyline points="13 2 13 9 20 9"/>
+                </svg>
+            ),
+            Folder: () => (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                </svg>
+            ),
+            Link: () => (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+            ),
+            Save: () => (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                    <polyline points="17 21 17 13 7 13 7 21"/>
+                    <polyline points="7 3 7 8 15 8"/>
+                </svg>
             )
         };
 
@@ -165,6 +189,13 @@
             const [viewMode, setViewMode] = useState('expanded'); // 'expanded', 'collapsed', or 'byType'
             const [tableCurrency, setTableCurrency] = useState('original'); // 'original', 'CAD', 'USD', 'BRL'
             const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' }); // { key: 'symbol' | 'account' | 'shares' | 'avgCost' | 'price' | 'value' | 'return', direction: 'asc' | 'desc' }
+            const [fileHandle, setFileHandle] = useState(null);
+            const [fileName, setFileName] = useState(null);
+            const [autoSave, setAutoSave] = useState(false);
+            const [fileSyncStatus, setFileSyncStatus] = useState('');
+            const [isFileApiSupported, setIsFileApiSupported] = useState(false);
+            const [uploadedFileName, setUploadedFileName] = useState(null);
+            const fileInputRef = useRef(null);
 
             const colors = useMemo(() => darkMode ? {
                 bg: '#0a0a0b', card: '#18181b', border: '#27272a', text: '#fafafa',
@@ -178,7 +209,12 @@
                 document.body.className = darkMode ? 'dark' : 'light';
             }, [darkMode]);
 
-            useEffect(() => { loadData(); fetchExchangeRate(); }, []);
+            useEffect(() => {
+                // Check if File System Access API is supported
+                setIsFileApiSupported('showOpenFilePicker' in window);
+                loadData();
+                fetchExchangeRate();
+            }, []);
 
             const fetchExchangeRate = async () => {
                 try {
@@ -215,8 +251,22 @@
                 setLoading(false);
             };
 
-            const savePositions = async (p) => { setPositions(p); await window.storage.set('positions', JSON.stringify(p)); };
-            const saveAccounts = async (a) => { setAccounts(a); await window.storage.set('accounts', JSON.stringify(a)); };
+            const savePositions = async (p) => {
+                setPositions(p);
+                await window.storage.set('positions', JSON.stringify(p));
+                if (autoSave) {
+                    if (fileHandle) await saveToFile();
+                    else if (uploadedFileName) await downloadPortfolioFile();
+                }
+            };
+            const saveAccounts = async (a) => {
+                setAccounts(a);
+                await window.storage.set('accounts', JSON.stringify(a));
+                if (autoSave) {
+                    if (fileHandle) await saveToFile();
+                    else if (uploadedFileName) await downloadPortfolioFile();
+                }
+            };
             const toggleTheme = async () => { const next = !darkMode; setDarkMode(next); await window.storage.set('darkMode', JSON.stringify(next)); };
 
             const formatSymbolForYahoo = (symbol) => {
@@ -252,7 +302,9 @@
                     const price = await fetchPrice(p.symbol);
                     return { ...p, currentPrice: price || p.currentPrice || p.avgCost };
                 }));
-                await savePositions(updated);
+                // Save to localStorage only, don't trigger auto-save to file
+                setPositions(updated);
+                await window.storage.set('positions', JSON.stringify(updated));
                 setLastUpdate(new Date());
                 setRefreshing(false);
             };
@@ -358,6 +410,141 @@
                     return;
                 }
                 await saveAccounts(accounts.filter(a => a.id !== id));
+            };
+
+            const chooseLocalFile = async () => {
+                if (!isFileApiSupported) {
+                    alert('File System Access API is not supported in this browser. Please use Chrome or Edge.');
+                    return;
+                }
+
+                try {
+                    const [handle] = await window.showOpenFilePicker({
+                        types: [{
+                            description: 'Portfolio JSON Files',
+                            accept: { 'application/json': ['.json'] }
+                        }],
+                        multiple: false
+                    });
+
+                    setFileHandle(handle);
+                    setFileName(handle.name);
+                    setFileSyncStatus('File connected successfully');
+                    setTimeout(() => setFileSyncStatus(''), 3000);
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.error('Error choosing file:', err);
+                        setFileSyncStatus('Error: ' + err.message);
+                    }
+                }
+            };
+
+            const saveToFile = async () => {
+                if (!fileHandle) {
+                    alert('Please choose a file first');
+                    return;
+                }
+
+                try {
+                    const writable = await fileHandle.createWritable();
+                    const data = {
+                        positions: positions,
+                        accounts: accounts,
+                        darkMode: darkMode,
+                        exportDate: new Date().toISOString()
+                    };
+                    await writable.write(JSON.stringify(data, null, 2));
+                    await writable.close();
+                    setFileSyncStatus('Saved to ' + fileName);
+                    setTimeout(() => setFileSyncStatus(''), 3000);
+                } catch (err) {
+                    console.error('Error saving to file:', err);
+                    setFileSyncStatus('Error saving: ' + err.message);
+                }
+            };
+
+            const loadFromFile = async () => {
+                if (!fileHandle) {
+                    alert('Please choose a file first');
+                    return;
+                }
+
+                try {
+                    const file = await fileHandle.getFile();
+                    const text = await file.text();
+                    const data = JSON.parse(text);
+
+                    if (data.positions) {
+                        await savePositions(data.positions);
+                    }
+                    if (data.accounts) {
+                        await saveAccounts(data.accounts);
+                    }
+                    if (data.darkMode !== undefined) {
+                        setDarkMode(data.darkMode);
+                        await window.storage.set('darkMode', JSON.stringify(data.darkMode));
+                    }
+
+                    setFileSyncStatus('Loaded from ' + fileName);
+                    setTimeout(() => setFileSyncStatus(''), 3000);
+                } catch (err) {
+                    console.error('Error loading from file:', err);
+                    setFileSyncStatus('Error loading: ' + err.message);
+                }
+            };
+
+            const handleFileUpload = async (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                try {
+                    const text = await file.text();
+                    const data = JSON.parse(text);
+
+                    if (data.positions) {
+                        setPositions(data.positions);
+                        await window.storage.set('positions', JSON.stringify(data.positions));
+                    }
+                    if (data.accounts) {
+                        setAccounts(data.accounts);
+                        await window.storage.set('accounts', JSON.stringify(data.accounts));
+                    }
+                    if (data.darkMode !== undefined) {
+                        setDarkMode(data.darkMode);
+                        await window.storage.set('darkMode', JSON.stringify(data.darkMode));
+                    }
+
+                    setUploadedFileName(file.name);
+                    setFileSyncStatus('Loaded from ' + file.name);
+                    setTimeout(() => setFileSyncStatus(''), 3000);
+                } catch (err) {
+                    console.error('Error loading file:', err);
+                    setFileSyncStatus('Error loading file: ' + err.message);
+                    alert('Failed to load file. Please check the file format.');
+                }
+
+                event.target.value = ''; // Reset input
+            };
+
+            const downloadPortfolioFile = () => {
+                const data = {
+                    positions: positions,
+                    accounts: accounts,
+                    darkMode: darkMode,
+                    exportDate: new Date().toISOString()
+                };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = uploadedFileName || `portfolio-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                setFileSyncStatus('Downloaded ' + (uploadedFileName || 'portfolio.json'));
+                setTimeout(() => setFileSyncStatus(''), 3000);
             };
 
             const exportData = () => {
@@ -1086,7 +1273,96 @@
                     {activeTab === 'accounts' && (
                         <>
                             <div style={styles.section}>
-                                <div style={styles.sectionHeader}><span style={styles.sectionTitle}>Backup & Restore</span></div>
+                                <div style={styles.sectionHeader}>
+                                    <span style={styles.sectionTitle}>Local File Sync</span>
+                                    <span style={{ fontSize: '11px', color: colors.textMuted, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        {isFileApiSupported ? (
+                                            <><Icons.Check /> Advanced mode (Chrome/Edge)</>
+                                        ) : (
+                                            <>Compatible mode (Safari/Firefox)</>
+                                        )}
+                                    </span>
+                                </div>
+                                <div style={{ padding: '16px 20px' }}>
+                                    {isFileApiSupported ? (
+                                        <>
+                                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '16px' }}>
+                                                <button onClick={chooseLocalFile} style={styles.btnPrimary}>
+                                                    <Icons.Folder /> Choose Local File
+                                                </button>
+                                                <button onClick={saveToFile} disabled={!fileHandle} style={{ ...styles.btnSecondary, opacity: fileHandle ? 1 : 0.5 }}>
+                                                    <Icons.Save /> Save to File
+                                                </button>
+                                                <button onClick={loadFromFile} disabled={!fileHandle} style={{ ...styles.btnSecondary, opacity: fileHandle ? 1 : 0.5 }}>
+                                                    <Icons.Upload /> Load from File
+                                                </button>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: colors.textMuted, cursor: fileHandle ? 'pointer' : 'not-allowed', opacity: fileHandle ? 1 : 0.5 }}>
+                                                    <input type="checkbox" checked={autoSave} onChange={(e) => setAutoSave(e.target.checked)} disabled={!fileHandle} style={{ width: '16px', height: '16px', cursor: fileHandle ? 'pointer' : 'not-allowed' }} />
+                                                    Auto-save
+                                                </label>
+                                            </div>
+                                            {fileName && (
+                                                <div style={{ padding: '12px', background: colors.hover, borderRadius: '8px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <Icons.Link />
+                                                    <span style={{ color: colors.textMuted }}>Connected to:</span>
+                                                    <span style={{ fontWeight: '500', color: colors.text }}>{fileName}</span>
+                                                </div>
+                                            )}
+                                            {fileSyncStatus && (
+                                                <div style={{ marginTop: '12px', padding: '10px 12px', background: `${colors.border}80`, borderRadius: '8px', fontSize: '12px', color: colors.textMuted }}>
+                                                    {fileSyncStatus}
+                                                </div>
+                                            )}
+                                            <div style={{ marginTop: '16px', padding: '12px', background: `${colors.border}40`, borderRadius: '8px', fontSize: '12px', color: colors.textDim }}>
+                                                <p style={{ marginBottom: '4px' }}><strong>Advanced mode (Chrome/Edge):</strong></p>
+                                                <p>• Choose a .json file from your local system (iCloud Drive, Documents, Desktop, etc.)</p>
+                                                <p>• Your portfolio data syncs directly with this file</p>
+                                                <p>• Enable Auto-save to automatically save changes to the file</p>
+                                                <p>• Data stays on your device - nothing is sent to any server</p>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '16px' }}>
+                                                <label style={{ ...styles.btnPrimary, cursor: 'pointer', margin: 0 }}>
+                                                    <Icons.Upload /> Load from File
+                                                    <input ref={fileInputRef} type="file" accept=".json" onChange={handleFileUpload} style={{ display: 'none' }} />
+                                                </label>
+                                                <button onClick={downloadPortfolioFile} disabled={!uploadedFileName} style={{ ...styles.btnSecondary, opacity: uploadedFileName ? 1 : 0.5 }}>
+                                                    <Icons.Download /> Save to Downloads
+                                                </button>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: colors.textMuted, cursor: uploadedFileName ? 'pointer' : 'not-allowed', opacity: uploadedFileName ? 1 : 0.5 }}>
+                                                    <input type="checkbox" checked={autoSave} onChange={(e) => setAutoSave(e.target.checked)} disabled={!uploadedFileName} style={{ width: '16px', height: '16px', cursor: uploadedFileName ? 'pointer' : 'not-allowed' }} />
+                                                    Auto-save
+                                                </label>
+                                            </div>
+                                            {uploadedFileName && (
+                                                <div style={{ padding: '12px', background: colors.hover, borderRadius: '8px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <Icons.File />
+                                                    <span style={{ color: colors.textMuted }}>Syncing with:</span>
+                                                    <span style={{ fontWeight: '500', color: colors.text }}>{uploadedFileName}</span>
+                                                </div>
+                                            )}
+                                            {fileSyncStatus && (
+                                                <div style={{ marginTop: '12px', padding: '10px 12px', background: `${colors.border}80`, borderRadius: '8px', fontSize: '12px', color: colors.textMuted }}>
+                                                    {fileSyncStatus}
+                                                </div>
+                                            )}
+                                            <div style={{ marginTop: '16px', padding: '12px', background: `${colors.border}40`, borderRadius: '8px', fontSize: '12px', color: colors.textDim }}>
+                                                <p style={{ marginBottom: '4px' }}><strong>Compatible mode (Safari/Firefox):</strong></p>
+                                                <p>• Load your portfolio.json file from anywhere (iCloud Drive, Documents, Desktop, etc.)</p>
+                                                <p>• When you make changes, the updated file is downloaded to your Downloads folder</p>
+                                                <p>• Configure Safari to always save downloads to a specific folder for seamless sync</p>
+                                                <p>• Enable "Auto-save" to automatically download changes</p>
+                                                <p>• Data stays on your device - nothing is sent to any server</p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div style={styles.section}>
+                                <div style={styles.sectionHeader}><span style={styles.sectionTitle}>Backup & Restore (Legacy)</span></div>
                                 <div style={{ padding: '16px 20px', display: 'flex', gap: '12px', alignItems: 'center' }}>
                                     <button onClick={exportData} style={styles.btnPrimary}>
                                         <Icons.Download /> Export Data
