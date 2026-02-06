@@ -186,7 +186,7 @@
             const [displayCurrency, setDisplayCurrency] = useState('CAD');
             const [exchangeRate, setExchangeRate] = useState(1.35); // USD to CAD default
             const [brlRate, setBrlRate] = useState(5.70); // USD to BRL default
-            const [viewMode, setViewMode] = useState('expanded'); // 'expanded', 'collapsed', or 'byType'
+            const [viewMode, setViewMode] = useState('expanded'); // 'expanded', 'bySymbol', 'collapsed', or 'byType'
             const [tableCurrency, setTableCurrency] = useState('original'); // 'original', 'CAD', 'USD', 'BRL'
             const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' }); // { key: 'symbol' | 'account' | 'shares' | 'avgCost' | 'price' | 'value' | 'return', direction: 'asc' | 'desc' }
             const [fileHandle, setFileHandle] = useState(null);
@@ -216,19 +216,50 @@
                 fetchExchangeRate();
             }, []);
 
+            const fetchWithProxy = async (url) => {
+                // Try direct fetch first (sometimes Yahoo Finance allows CORS)
+                try {
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        return await response.json();
+                    }
+                } catch (e) {
+                    console.log('Direct fetch failed, trying proxies...', e);
+                }
+
+                // Fallback to proxies
+                const proxies = [
+                    (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+                    (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+                    (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+                ];
+
+                for (const proxy of proxies) {
+                    try {
+                        const response = await fetch(proxy(url), {
+                            headers: { 'Accept': 'application/json' }
+                        });
+                        if (response.ok) {
+                            return await response.json();
+                        }
+                    } catch (e) {
+                        console.log('Proxy failed, trying next...', e);
+                    }
+                }
+                throw new Error('All proxies failed');
+            };
+
             const fetchExchangeRate = async () => {
                 try {
                     // Fetch USD/CAD rate
                     const cadUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/USDCAD=X?interval=1d&range=1d';
-                    const cadRes = await fetch(`https://corsproxy.io/?${encodeURIComponent(cadUrl)}`);
-                    const cadData = await cadRes.json();
+                    const cadData = await fetchWithProxy(cadUrl);
                     const cadRate = cadData.chart?.result?.[0]?.meta?.regularMarketPrice;
                     if (cadRate) setExchangeRate(cadRate);
 
                     // Fetch USD/BRL rate
                     const brlUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/USDBRL=X?interval=1d&range=1d';
-                    const brlRes = await fetch(`https://corsproxy.io/?${encodeURIComponent(brlUrl)}`);
-                    const brlData = await brlRes.json();
+                    const brlData = await fetchWithProxy(brlUrl);
                     const brlRateValue = brlData.chart?.result?.[0]?.meta?.regularMarketPrice;
                     if (brlRateValue) setBrlRate(brlRateValue);
                 } catch (e) { console.error('Failed to fetch exchange rate:', e); }
@@ -287,26 +318,44 @@
                 try {
                     const yahooSymbol = formatSymbolForYahoo(symbol);
                     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?interval=1d&range=1d`;
-                    const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
-                    const data = await res.json();
+                    const data = await fetchWithProxy(url);
                     return data.chart?.result?.[0]?.meta?.regularMarketPrice || null;
-                } catch { return null; }
+                } catch (e) {
+                    console.error(`Failed to fetch price for ${symbol}:`, e);
+                    return null;
+                }
             };
 
             const updateAllPrices = async () => {
                 const autoPositions = positions.filter(p => !p.manual);
                 if (!autoPositions.length) return;
                 setRefreshing(true);
-                const updated = await Promise.all(positions.map(async (p) => {
-                    if (p.manual) return p;
-                    const price = await fetchPrice(p.symbol);
-                    return { ...p, currentPrice: price || p.currentPrice || p.avgCost };
-                }));
-                // Save to localStorage only, don't trigger auto-save to file
-                setPositions(updated);
-                await window.storage.set('positions', JSON.stringify(updated));
-                setLastUpdate(new Date());
-                setRefreshing(false);
+
+                try {
+                    let successCount = 0;
+                    const updated = await Promise.all(positions.map(async (p) => {
+                        if (p.manual) return p;
+                        const price = await fetchPrice(p.symbol);
+                        if (price) successCount++;
+                        return { ...p, currentPrice: price || p.currentPrice || p.avgCost };
+                    }));
+
+                    // Save to localStorage only, don't trigger auto-save to file
+                    setPositions(updated);
+                    await window.storage.set('positions', JSON.stringify(updated));
+                    setLastUpdate(new Date());
+
+                    // Show feedback
+                    console.log(`Updated ${successCount}/${autoPositions.length} prices successfully`);
+                    if (successCount === 0) {
+                        alert('Failed to fetch prices. Please try again later.');
+                    }
+                } catch (e) {
+                    console.error('Error updating prices:', e);
+                    alert('Error updating prices. Check console for details.');
+                } finally {
+                    setRefreshing(false);
+                }
             };
 
             const addPosition = async () => {
@@ -782,6 +831,34 @@
                 return Object.values(grouped);
             }, [positions, accounts]);
 
+            const groupedBySymbol = useMemo(() => {
+                const grouped = {};
+                positions.forEach(pos => {
+                    const symbol = pos.symbol;
+                    if (!grouped[symbol]) {
+                        grouped[symbol] = {
+                            symbol: symbol,
+                            positions: [],
+                            totalValue: 0,
+                            totalCost: 0,
+                            totalGain: 0
+                        };
+                    }
+                    grouped[symbol].positions.push(pos);
+
+                    if (pos.manual) {
+                        grouped[symbol].totalValue += pos.balance;
+                    } else {
+                        const cost = pos.shares * pos.avgCost;
+                        const value = pos.shares * pos.currentPrice;
+                        grouped[symbol].totalCost += cost;
+                        grouped[symbol].totalValue += value;
+                        grouped[symbol].totalGain += value - cost;
+                    }
+                });
+                return Object.values(grouped);
+            }, [positions]);
+
             const groupedByType = useMemo(() => {
                 const grouped = {};
                 positions.forEach(pos => {
@@ -969,6 +1046,7 @@
                                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                         <div style={{ display: 'flex', background: colors.card, borderRadius: '8px', border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
                                             <button onClick={() => setViewMode('expanded')} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '500', border: 'none', cursor: 'pointer', background: viewMode === 'expanded' ? colors.border : 'transparent', color: viewMode === 'expanded' ? colors.text : colors.textMuted }}>By Position</button>
+                                            <button onClick={() => setViewMode('bySymbol')} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '500', border: 'none', cursor: 'pointer', background: viewMode === 'bySymbol' ? colors.border : 'transparent', color: viewMode === 'bySymbol' ? colors.text : colors.textMuted }}>By Symbol</button>
                                             <button onClick={() => setViewMode('collapsed')} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '500', border: 'none', cursor: 'pointer', background: viewMode === 'collapsed' ? colors.border : 'transparent', color: viewMode === 'collapsed' ? colors.text : colors.textMuted }}>By Account</button>
                                             <button onClick={() => setViewMode('byType')} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '500', border: 'none', cursor: 'pointer', background: viewMode === 'byType' ? colors.border : 'transparent', color: viewMode === 'byType' ? colors.text : colors.textMuted }}>By Type</button>
                                         </div>
@@ -1080,6 +1158,58 @@
                                                             <tr key={group.type}>
                                                                 <td style={styles.td}>
                                                                     <div style={{ fontWeight: '600' }}>{group.type}</div>
+                                                                    <div style={{ fontSize: '12px', color: colors.textMuted }}>{group.positions.length} position{group.positions.length !== 1 ? 's' : ''}</div>
+                                                                </td>
+                                                                <td style={styles.td}>
+                                                                    <div style={{ fontSize: '12px', color: colors.textMuted }}>
+                                                                        {[...new Set(group.positions.map(p => getAccount(p.accountId).name))].join(', ')}
+                                                                    </div>
+                                                                </td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', color: colors.textDim }}>—</td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', color: colors.textDim }}>—</td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', color: colors.textDim }}>—</td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', fontWeight: '600' }} className="mono">
+                                                                    {currencySymbol && `${currencySymbol} `}${displayValue.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                </td>
+                                                                <td style={{ ...styles.td, textAlign: 'right', ...(displayGain >= 0 ? styles.positive : styles.negative) }} className="mono">
+                                                                    {displayCost > 0 ? (
+                                                                        <>
+                                                                            <div style={{ fontWeight: '500' }}>{pct >= 0 ? '+' : ''}{pct.toFixed(1)}%</div>
+                                                                            <div style={{ fontSize: '12px', opacity: 0.8 }}>{displayGain >= 0 ? '+' : ''}{currencySymbol && `${currencySymbol} `}${displayGain.toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                                                                        </>
+                                                                    ) : '—'}
+                                                                </td>
+                                                                <td style={styles.td}></td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                ) : viewMode === 'bySymbol' ? (
+                                                    groupedBySymbol.map((group) => {
+                                                        // Convert totals to table currency
+                                                        let displayValue = 0, displayCost = 0, displayGain = 0;
+                                                        const currencySymbol = tableCurrency === 'original' ? '' : tableCurrency;
+
+                                                        group.positions.forEach(pos => {
+                                                            const posCurrency = pos.currency || 'CAD';
+                                                            if (pos.manual) {
+                                                                const converted = convertTableValue(pos.balance, posCurrency);
+                                                                displayValue += converted.value;
+                                                            } else {
+                                                                const cost = pos.shares * pos.avgCost;
+                                                                const value = pos.shares * pos.currentPrice;
+                                                                const convertedCost = convertTableValue(cost, posCurrency);
+                                                                const convertedValue = convertTableValue(value, posCurrency);
+                                                                displayCost += convertedCost.value;
+                                                                displayValue += convertedValue.value;
+                                                                displayGain += convertedValue.value - convertedCost.value;
+                                                            }
+                                                        });
+
+                                                        const pct = displayCost > 0 ? (displayGain / displayCost) * 100 : 0;
+                                                        return (
+                                                            <tr key={group.symbol}>
+                                                                <td style={styles.td}>
+                                                                    <div style={{ fontWeight: '600' }}>{group.symbol}</div>
                                                                     <div style={{ fontSize: '12px', color: colors.textMuted }}>{group.positions.length} position{group.positions.length !== 1 ? 's' : ''}</div>
                                                                 </td>
                                                                 <td style={styles.td}>
